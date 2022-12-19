@@ -58,9 +58,7 @@ class NeeVoApiInterface:
         finally:
             await _session.close()
 
-    # Get Devices
-    async def _get_tanks(self):
-
+    async def GetAllDisplayPropaneDevices(self) -> Dict:
         _session = ClientSession()
         try:
             async with _session.get(
@@ -69,9 +67,7 @@ class NeeVoApiInterface:
                 auth=BasicAuth(self.email, self.password)
             ) as response:
                 if response.status == 200:
-                    for _tank in await response.json():
-                        _equip_obj = Tank(_tank, self)
-                        self._tanks[_tank.get('Id')] = _equip_obj
+                    return await response.json()
                 else:
                     raise GenericHTTPError(response.status)
         except ClientError as err:
@@ -79,14 +75,22 @@ class NeeVoApiInterface:
         finally:
             await _session.close()
 
-    async def get_tanks_info(self):
+    # Get Tanks
+    async def _get_tanks(self) -> None:
+        _session = ClientSession()
+        tanks = await self.GetAllDisplayPropaneDevices()
+        for _tank in tanks:
+            _tank_obj = Tank(_tank, self)
+            self._tanks[_tank.get('Id')] = _tank_obj
+
+    async def get_tanks_info(self) -> Dict:
         if not self._tanks:
             await self._get_tanks()
         return self._tanks
 
     async def refresh_tanks(self) -> None:
         """Refresh the tank data."""
-        _tanks: Dict = await self._get_tanks()
+        _tanks: Dict = await self.GetAllDisplayPropaneDevices()
         for _tank in _tanks:
             _tank_obj: Tank = None
             tank = self._tanks.get(_tank.get('Id'))

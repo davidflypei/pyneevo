@@ -11,7 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 class Tank:
     """Define a Nee-Vo tank."""
 
-    def __init__(self, tank_data: dict, api_interface):
+    def __init__(self, tank_data: dict, api_interface) -> None:
         """Initialize."""
         self._api_interface = api_interface
         self._tank_data = tank_data
