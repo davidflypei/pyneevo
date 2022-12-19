@@ -41,7 +41,7 @@ class NeeVoApiInterface:
 
     # Authenticate
     async def _authenticate(self) -> None:
-        _LOGGER.INFO(f"Authenticating with Nee-Vo API {self.email} {self.password}")
+        _LOGGER.info(f"Authenticating with Nee-Vo API {self.email} {self.password}")
         _session = ClientSession()
         try:
             async with _session.get(
