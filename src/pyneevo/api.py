@@ -41,7 +41,7 @@ class NeeVoApiInterface:
 
     # Authenticate
     async def _authenticate(self) -> None:
-        _LOGGER.info(f"Authenticating with Nee-Vo API {self.email} {self.password}")
+        _LOGGER.debug(f"Authenticating with Nee-Vo API")
         _session = ClientSession()
         try:
             async with _session.get(
@@ -49,6 +49,7 @@ class NeeVoApiInterface:
                 headers=HEADERS,
                 auth=BasicAuth(self.email, self.password),
             ) as response:
+                _LOGGER.info(f"Response: {response}")
                 if response.status == 401:
                     raise InvalidCredentialsError("Invalid credentials")
                 else:
