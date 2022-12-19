@@ -49,10 +49,9 @@ class NeeVoApiInterface:
                 headers=HEADERS,
                 auth=BasicAuth(self.email, self.password),
             ) as response:
-                _LOGGER.info(f"Response: {response}")
                 if response.status == 401:
                     raise InvalidCredentialsError("Invalid credentials")
-                else:
+                elif response.status != 200:
                     raise GenericHTTPError(f"HTTP error: {response.status}")
         except ClientError as err:
             raise err
