@@ -17,7 +17,7 @@ setup(
     long_description_content_type="text/markdown",
     package_dir={"": "src"},
     packages=find_packages(where="src", exclude=("tests", "tests.*", "*.tests.*", ".tests", "dist")),
-    install_requires=["requests"],
+    install_requires=["aiohttp"],
     keywords="neevo, propane, tank, api",
     python_requires=">=3.6",
     url="https://github.com/davidflypei/pyneevo",
