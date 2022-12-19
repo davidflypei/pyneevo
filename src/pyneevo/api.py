@@ -1,9 +1,13 @@
+import logging
+
 from aiohttp import ClientSession, ClientTimeout, BasicAuth
 from aiohttp.client_exceptions import ClientError
 
 from pyneevo.tank import Tank
 from pyneevo.errors import PyNeeVoError, InvalidCredentialsError, GenericHTTPError, InvalidResponseFormat
 from typing import Type, TypeVar, List, Dict, Optional
+
+_LOGGER = logging.getLogger(__name__)
 
 ApiType = TypeVar("ApiType", bound="EcoNetApiInterface")
 
@@ -37,7 +41,7 @@ class NeeVoApiInterface:
 
     # Authenticate
     async def _authenticate(self) -> None:
-
+        _LOGGER.INFO(f"Authenticating with Nee-Vo API {self.email} {self.password}")
         _session = ClientSession()
         try:
             async with _session.get(
