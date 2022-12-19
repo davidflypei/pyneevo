@@ -60,6 +60,7 @@ class NeeVoApiInterface:
 
     async def GetAllDisplayPropaneDevices(self) -> Dict:
         _session = ClientSession()
+        responsejson = {}
         try:
             async with _session.get(
                 f"{REST_URL}/GetAllDisplayPropaneDevices",
@@ -67,13 +68,14 @@ class NeeVoApiInterface:
                 auth=BasicAuth(self.email, self.password)
             ) as response:
                 if response.status == 200:
-                    return await response.json()
+                    responsejson = await response.json()
                 else:
                     raise GenericHTTPError(response.status)
         except ClientError as err:
             raise err
         finally:
             await _session.close()
+            return responsejson
 
     # Get Tanks
     async def _get_tanks(self) -> None:
