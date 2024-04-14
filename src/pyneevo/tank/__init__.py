@@ -80,7 +80,17 @@ class Tank:
         return self._tank_data['SerialNumber']
 
     @property
-    def last_pressure_unit(self) -> str:
+    def tank_capacity(self) -> str:
+        """Return the serial number of the tank."""
+        return self._tank_data['TankCapacity']
+
+    @property
+    def tank_last_pressure(self) -> str:
         """Return the last pressure unit of the tank."""
-        return self._tank_data['TankLastPressureUnit']
+        return self._tank_data['TankLastPressure']
+
+    @property
+    def tank_last_pressure_unit(self) -> str:
+        """Return the last pressure unit of the tank."""
+        return self._tank_data['TankPressureDisplayUnitSymbol']
 

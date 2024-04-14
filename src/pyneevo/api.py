@@ -79,7 +79,6 @@ class NeeVoApiInterface:
 
     # Get Tanks
     async def _get_tanks(self) -> None:
-        _session = ClientSession()
         tanks = await self.GetAllDisplayPropaneDevices()
         for _tank in tanks:
             _tank_obj = Tank(_tank, self)
