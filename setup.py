@@ -10,7 +10,7 @@ README = (HERE / "README.md").read_text(encoding="utf-8")
 # This call to setup() does all the work
 setup(
     name="pyneevo",
-    version="1.0.5",
+    version="1.0.6",
     author="davidflypei",
     description="Python library for interacting with the Neevo API",
     long_description=README,
