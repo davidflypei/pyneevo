@@ -75,7 +75,7 @@ class NeeVoApiInterface:
             raise err
         finally:
             await _session.close()
-            return responsejson
+        return responsejson
 
     # Get Tanks
     async def _get_tanks(self) -> None:
