@@ -1,81 +1,123 @@
-import logging
+"""Client for the Nee-Vo API."""
 
-from aiohttp import ClientSession, ClientTimeout, BasicAuth
+import asyncio
+import base64
+import logging
+from typing import Any, Dict, List, Optional, Type, TypeVar
+
+from aiohttp import ClientSession, ClientTimeout
 from aiohttp.client_exceptions import ClientError
 
+from pyneevo.errors import (
+    GenericHTTPError,
+    InvalidCredentialsError,
+    InvalidResponseFormat,
+    NeeVoConnectionError,
+    NeeVoTimeoutError,
+)
 from pyneevo.tank import Tank
-from pyneevo.errors import PyNeeVoError, InvalidCredentialsError, GenericHTTPError, InvalidResponseFormat
-from typing import Type, TypeVar, List, Dict, Optional
 
 _LOGGER = logging.getLogger(__name__)
 
-ApiType = TypeVar("ApiType", bound="EcoNetApiInterface")
+ApiType = TypeVar("ApiType", bound="NeeVoApiInterface")
 
 HOST = "ws.otodatanetwork.com"
 REST_URL = f"https://{HOST}/neevoapp/v1/DataService.svc/"
 HEADERS = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "pyneevo/1.0.0",
-        }
+    "Content-Type": "application/json",
+    "Accept": "application/json",
+    "User-Agent": "pyneevo/1.0.0",
+}
+DEFAULT_TIMEOUT = 30.0
 
 
 class NeeVoApiInterface:
-    # Constructor
-    def __init__(self, email: str, password: str):
-        # Set email and password
+    """Talk to the Nee-Vo API for one account."""
+
+    def __init__(
+        self,
+        email: str,
+        password: str,
+        session: Optional[ClientSession] = None,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> None:
+        """Initialize.
+
+        ``session`` is an optional aiohttp session owned by the caller, who
+        stays responsible for closing it. Without one, each request opens and
+        closes its own. ``timeout`` is the limit in seconds for each request.
+        """
         self.email = email
         self.password = password
-
-        # Set class properties
-        self._tanks: Dict = {}
+        self._session = session
+        self._timeout = timeout
+        self._tanks: Dict[Any, Tank] = {}
 
     @classmethod
-    async def login(cls: Type[ApiType], email: str, password: str) -> ApiType:
-        """Login to the Nee-Vo API."""
-        # Create instance
-        instance = cls(email, password)
-
+    async def login(
+        cls: Type[ApiType],
+        email: str,
+        password: str,
+        session: Optional[ClientSession] = None,
+        timeout: float = DEFAULT_TIMEOUT,
+    ) -> ApiType:
+        """Check the credentials and return a ready-to-use client."""
+        instance = cls(email, password, session=session, timeout=timeout)
         await instance._authenticate()
         return instance
 
-    # Authenticate
-    async def _authenticate(self) -> None:
-        _LOGGER.debug(f"Authenticating with Nee-Vo API")
-        _session = ClientSession()
+    async def _request(self, endpoint: str, parse_json: bool = False) -> Any:
+        """Send one GET request and translate every failure to a library error."""
+        # Built by hand because aiohttp is removing BasicAuth in version 4. Latin-1
+        # matches what aiohttp's BasicAuth used by default.
+        credentials = f"{self.email}:{self.password}".encode("latin1")
+        headers = {
+            **HEADERS,
+            "Authorization": f"Basic {base64.b64encode(credentials).decode('ascii')}",
+        }
+        session = self._session if self._session is not None else ClientSession()
         try:
-            async with _session.get(
-                f"{REST_URL}/Login",
-                headers=HEADERS,
-                auth=BasicAuth(self.email, self.password),
+            async with session.get(
+                f"{REST_URL}{endpoint}",
+                headers=headers,
+                timeout=ClientTimeout(total=self._timeout),
             ) as response:
                 if response.status == 401:
                     raise InvalidCredentialsError("Invalid credentials")
-                elif response.status != 200:
-                    raise GenericHTTPError(f"HTTP error: {response.status}")
+                if response.status != 200:
+                    raise GenericHTTPError(
+                        f"HTTP error: {response.status}", status=response.status
+                    )
+                if not parse_json:
+                    return None
+                try:
+                    return await response.json(content_type=None)
+                except ValueError as err:
+                    raise InvalidResponseFormat("Response is not valid JSON") from err
+        except asyncio.TimeoutError as err:
+            raise NeeVoTimeoutError(
+                f"No response from Nee-Vo within {self._timeout} seconds"
+            ) from err
         except ClientError as err:
-            raise err
+            raise NeeVoConnectionError(str(err) or type(err).__name__) from err
         finally:
-            await _session.close()
+            if self._session is None:
+                await session.close()
 
-    async def GetAllDisplayPropaneDevices(self) -> Dict:
-        _session = ClientSession()
-        responsejson = {}
-        try:
-            async with _session.get(
-                f"{REST_URL}/GetAllDisplayPropaneDevices",
-                headers=HEADERS,
-                auth=BasicAuth(self.email, self.password)
-            ) as response:
-                if response.status == 200:
-                    responsejson = await response.json()
-                else:
-                    raise GenericHTTPError(response.status)
-        except ClientError as err:
-            raise err
-        finally:
-            await _session.close()
-        return responsejson
+    async def _authenticate(self) -> None:
+        """Check the credentials against the API."""
+        _LOGGER.debug("Authenticating with Nee-Vo API")
+        await self._request("Login")
+
+    async def GetAllDisplayPropaneDevices(self) -> List[Dict[str, Any]]:
+        """Return the raw device records for the account."""
+        devices = await self._request("GetAllDisplayPropaneDevices", parse_json=True)
+        if not isinstance(devices, list):
+            raise InvalidResponseFormat("Expected a list of devices")
+        for device in devices:
+            if not isinstance(device, dict) or device.get("Id") is None:
+                raise InvalidResponseFormat("Device record has no Id")
+        return devices
 
     # Get Tanks
     async def _get_tanks(self) -> None:
