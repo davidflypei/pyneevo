@@ -10,6 +10,8 @@ PyNeeVo allows Python applications to authenticate with Nee-Vo and retrieve prop
 * Username and password authentication
 * Retrieve all available tank information
 * Refresh tank data from the Nee-Vo platform
+* Specific errors for bad credentials, connection problems, timeouts and unexpected responses
+* Optional shared `aiohttp` session and configurable timeout
 
 ## Installation
 
@@ -20,36 +22,26 @@ pip install pyneevo
 ## Quick Start
 
 ```python
+import asyncio
+
 from pyneevo import NeeVoApiInterface
-from pyneevo.errors import (
-    GenericHTTPError,
-    InvalidCredentialsError,
-    InvalidResponseFormat,
-)
+from pyneevo.errors import InvalidCredentialsError, PyNeeVoError
 
 email = "user@example.com"
 password = "your-password"
 
 async def main():
-    # Login
     try:
-        api = await NeeVoApiInterface.login(
-            email,
-            password=password,
-        )
+        api = await NeeVoApiInterface.login(email, password)
+        tanks = await api.get_tanks_info()
     except InvalidCredentialsError:
         print("Invalid credentials")
         return
-
-    # Retrieve tank information
-    try:
-        tanks = await api.get_tanks_info()
-    except (GenericHTTPError, InvalidResponseFormat) as err:
+    except PyNeeVoError as err:
         print(f"Failed to retrieve tank information: {err}")
         return
 
-    # Display tank data
-    for tank in tanks:
+    for tank in tanks.values():
         print(
             f"ID: {tank.id} "
             f"Name: {tank.name} "
@@ -57,7 +49,6 @@ async def main():
         )
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
 ```
 
@@ -70,7 +61,7 @@ await api.refresh_tanks()
 
 tanks = await api.get_tanks_info()
 
-for tank in tanks:
+for tank in tanks.values():
     print(
         f"ID: {tank.id} "
         f"Name: {tank.name} "
@@ -83,13 +74,21 @@ for tank in tanks:
 ### Authentication
 
 ```python
-api = await NeeVoApiInterface.login(
-    email,
-    password=password,
-)
+api = await NeeVoApiInterface.login(email, password)
 ```
 
-Authenticates with the Nee-Vo platform and returns an authenticated API interface instance.
+Checks the credentials with the Nee-Vo platform and returns an API interface instance.
+
+Two optional arguments are available:
+
+```python
+api = await NeeVoApiInterface.login(
+    email,
+    password,
+    session=my_aiohttp_session,  # Shared session. You stay responsible for closing it.
+    timeout=30,  # Limit in seconds for each request. The default is 30.
+)
+```
 
 ### Get Tank Information
 
@@ -97,7 +96,7 @@ Authenticates with the Nee-Vo platform and returns an authenticated API interfac
 tanks = await api.get_tanks_info()
 ```
 
-Returns a list of all tanks associated with the authenticated account.
+Returns a dictionary of all tanks associated with the account, keyed by tank ID.
 
 ### Refresh Tank Data
 
@@ -109,13 +108,15 @@ Requests that Nee-Vo refresh all tank readings associated with the account.
 
 ## Error Handling
 
-PyNeeVo exposes several exceptions that can be used for handling API and authentication failures.
+Every error raised by PyNeeVo is a `PyNeeVoError`.
 
 ```python
 from pyneevo.errors import (
     GenericHTTPError,
     InvalidCredentialsError,
     InvalidResponseFormat,
+    NeeVoConnectionError,
+    NeeVoTimeoutError,
     PyNeeVoError,
 )
 
@@ -125,11 +126,15 @@ except InvalidCredentialsError:
     print("Invalid credentials")
 except InvalidResponseFormat:
     print("Unexpected response from Nee-Vo")
-except GenericHTTPError:
-    print("HTTP error communicating with Nee-Vo")
-except PyNeeVoError:
-    print("General PyNeeVo error")
+except NeeVoTimeoutError:
+    print("Nee-Vo did not answer in time")
+except NeeVoConnectionError:
+    print("Could not reach Nee-Vo")
+except GenericHTTPError as err:
+    print(f"HTTP error communicating with Nee-Vo: {err.status}")
 ```
+
+`NeeVoTimeoutError` is a kind of `NeeVoConnectionError`, so catch it first if you handle them differently.
 
 ## Current API Coverage
 
@@ -148,6 +153,15 @@ PyNeeVo is intended for Python developers who want to integrate Nee-Vo tank data
 * Notification systems
 * Reporting tools
 * Custom integrations
+
+## Development
+
+The tests use only the standard library plus `aiohttp`, and never touch the network:
+
+```bash
+pip install -e .
+python -m unittest discover -s tests -t .
+```
 
 ## License
 
